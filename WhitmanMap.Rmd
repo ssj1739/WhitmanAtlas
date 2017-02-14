@@ -1,0 +1,108 @@
+---
+title: "Walt Whitman's New York"
+author: "Sidharth Jain"
+date: "February 5, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Text Mining and Mapping Walt Whitman's Works
+
+The following is an initial exploration into Whitman's works and creating a text-based "thick map" of his depiction of 19th Century Urban New York.
+
+### Process
+This exploration will be done in the R language, which affords a relatively easy interface to both Google maps and text data.  I have also used xpdf, a software made to extract raw text from PDF documents.
+
+The first step (and the most tedious) is extracting and cleaning the text data from various sources, and then mapping these sources.  
+
+#### Reading in Data
+
+I will be using the samplings of Whitman's journalism (provided to us in pdf format which I converted to txt using xpdf) and his poetry.  
+
+Texts are easily read in and processed with the "tm" package ("text mining").
+
+I also normalize all strings by removing capitalized characters and punctuation.  This allows for easy string matching.
+
+```{r}
+library("NLP")
+library("tm")
+
+whitmans <- file.path(paste0(getwd(), "/Whitman"))
+
+docs <- Corpus(DirSource(whitmans))
+
+# preprocessing
+docs.norm <- docs
+docs.norm1 <- tm_map(docs.norm, removePunctuation)
+docs.norm2 <- tm_map(docs.norm1, removeNumbers)
+
+# removing common words
+docs.norm3 <- tm_map(docs.norm2, removeWords, stopwords("english"))
+docs.norm4 <- tm_map(docs.norm3, removeWords, c("the", "whitman", "walt"))
+docs.norm5 <- tm_map(docs.norm4, stripWhitespace)
+
+#Finalizing and creating normalized document matrix
+docs.norm.final <- tm_map(docs.norm5, PlainTextDocument)
+
+
+```
+
+### Understanding Whitman's Writing
+
+Now that the data has been read in, we can do some quick visualization of some of the text, which might give us some insights about Whitman's writing.
+
+```{r}
+dtm <- DocumentTermMatrix(docs.norm.final)
+dtms <- removeSparseTerms(dtm, 0.15)
+tdm <- TermDocumentMatrix(docs.norm.final)
+
+wordCount <- colSums(as.matrix(dtm))
+
+print(paste0("Number of unique words: ",length(wordCount)))
+
+# Sorting words by frequency of occurrence
+sort.order <- order(wordCount, decreasing = T)
+wc <- wordCount[sort.order]
+
+wc.df <- data.frame(word=names(wc), count=wc)
+
+# Creating a histogram of word frequencies
+library("ggplot2")
+ggplot(data = subset(wc.df, count>20), aes(x = word, y=count)) +
+  geom_bar(stat="identity")+
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+
+# A different way of visualizing (or mapping!)
+library("wordcloud")
+
+wordcloud(wc.df$word, wc.df$count, min.freq=5, scale=c(5, .1), colors=brewer.pal(6, "Dark2"))  
+
+```
+### Reflection
+
+Some of my immediate insights are the presence of locations! Whitman seems to reference the words 'new' and 'york' quite a bit, as well as 'brooklyn' and 'ferry' (which probably stems from his work, "Philosophy of Ferries").  It also seems that despite my intention, Whitman's surname is the most prevalent phrase, which suggests that my removeWords function didn't quite do the job.  I'll have to come back and take a better look at that.  For now, we trudge on.
+
+### Mapping text to location
+
+To link words to actual locations, we can use the GeoNames database to identify common names for many locations, and link those locations to latitude-longitude pairings to map them.  I'm going to search every word that Whitman wrote in the NY database and return all coordinate pairings that match.
+
+```{r}
+library("qdap")
+# Load in NY data set from geonames, preprocessed.
+load("NYlandmarks.RData")
+
+# string matching locations to Whitman's text
+word.list <- wc.df$word
+
+s <- sapply(word.list, function(x){
+  match(x, NY$name)
+})
+
+sapply(docs, 
+
+
+```
